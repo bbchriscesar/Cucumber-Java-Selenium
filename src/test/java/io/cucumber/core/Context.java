@@ -37,7 +37,7 @@ import java.util.HashMap;
 // INTERVIEW Q: What does @Slf4j do?
 // A: It's a Lombok annotation that generates a static SLF4J logger field at compile time:
 //    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Context.class);
-//    This eliminates boilerplate — you can immediately use log.info(), log.debug(), etc.
+
 @Slf4j
 public class Context {
 
