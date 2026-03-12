@@ -1,0 +1,222 @@
+# ============================================================================
+# GitHub Actions CI Pipeline — Cucumber-Java-Selenium
+# ============================================================================
+# This workflow runs the BDD test suite against the-internet.herokuapp.com
+# on every push and pull request to the main branch.
+#
+# INTERVIEW Q: What is GitHub Actions?
+# A: GitHub Actions is a CI/CD platform built into GitHub. It automates
+#    workflows (build, test, deploy) triggered by repository events
+#    (push, pull_request, schedule, etc.). Workflows are defined as
+#    YAML files in .github/workflows/.
+#
+# INTERVIEW Q: What is CI (Continuous Integration)?
+# A: CI is the practice of automatically building and testing code every
+#    time a developer pushes changes. It catches integration issues early,
+#    ensures tests pass before merging, and provides rapid feedback.
+# ============================================================================
+
+name: CI — Cucumber Selenium Tests
+
+# ============================================================================
+# TRIGGERS
+#
+# INTERVIEW Q: What does 'on' do in a GitHub Actions workflow?
+# A: It defines the EVENTS that trigger the workflow. Common triggers:
+#    - push:          When code is pushed to a branch
+#    - pull_request:  When a PR is opened, updated, or synchronized
+#    - schedule:      Cron-based (e.g., nightly runs)
+#    - workflow_dispatch: Manual trigger from the GitHub UI
+# ============================================================================
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allows manual triggering from the GitHub Actions tab
+
+# ============================================================================
+# PERMISSIONS
+#
+# INTERVIEW Q: Why set explicit permissions?
+# A: Follows the Principle of Least Privilege. By default, GITHUB_TOKEN has
+#    broad access. Restricting to 'contents: read' ensures the workflow can
+#    only read repository contents — it can't push code, delete branches, etc.
+# ============================================================================
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # ========================================================================
+    # RUNNER
+    #
+    # INTERVIEW Q: What is 'runs-on'?
+    # A: It specifies the virtual machine (runner) environment. GitHub provides
+    #    hosted runners: ubuntu-latest, windows-latest, macos-latest.
+    #    ubuntu-latest is the most common choice — it's fast, free for public
+    #    repos, and comes pre-installed with common tools (Java, Maven, etc.).
+    #
+    # INTERVIEW Q: Why ubuntu-latest for Selenium tests?
+    # A: Ubuntu runners come with Chrome and ChromeDriver pre-installed.
+    #    Combined with headless mode, this allows browser tests to run without
+    #    a physical display (no GUI needed on the CI server).
+    # ========================================================================
+    runs-on: ubuntu-latest
+
+    # ========================================================================
+    # STRATEGY (MATRIX)
+    #
+    # INTERVIEW Q: What is a matrix strategy?
+    # A: It runs the SAME job multiple times with different configurations.
+    #    Here we could test across multiple Java versions or browsers.
+    #    Currently set to Java 21 only, but the matrix makes it easy to add
+    #    more versions later (e.g., [17, 21]) without duplicating the job.
+    #
+    # INTERVIEW Q: What does fail-fast do?
+    # A: When true (default), if ANY matrix combination fails, all other
+    #    running matrix jobs are CANCELLED immediately. Setting it to false
+    #    lets all combinations finish, so you can see the full picture of
+    #    which environments pass and which fail.
+    # ========================================================================
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: [ 21 ]
+
+    name: Tests (Java ${{ matrix.java-version }})
+
+    steps:
+      # ======================================================================
+      # STEP 1: CHECKOUT
+      #
+      # INTERVIEW Q: Why is checkout needed?
+      # A: GitHub Actions runners start with an EMPTY workspace. The
+      #    actions/checkout action clones your repository into the runner
+      #    so subsequent steps can access your code, pom.xml, feature files, etc.
+      # ======================================================================
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ======================================================================
+      # STEP 2: SET UP JAVA (JDK)
+      #
+      # INTERVIEW Q: What does setup-java do?
+      # A: It installs and configures the specified JDK version on the runner.
+      #    - distribution: The JDK vendor (temurin = Eclipse Adoptium, a free,
+      #      production-ready OpenJDK distribution).
+      #    - cache: 'maven' tells the action to cache ~/.m2/repository between
+      #      runs, so dependencies are NOT re-downloaded every time. This can
+      #      cut build times from minutes to seconds.
+      #
+      # INTERVIEW Q: Why cache Maven dependencies?
+      # A: Without caching, Maven downloads ALL dependencies from the internet
+      #    on every workflow run (~100+ MB for this project). Caching stores
+      #    them between runs and only downloads new/changed dependencies.
+      # ======================================================================
+      - name: ☕ Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java-version }}
+          cache: 'maven'
+
+      # ======================================================================
+      # STEP 3: SET UP CHROME (STABLE)
+      #
+      # INTERVIEW Q: Why use setup-chrome instead of the pre-installed Chrome?
+      # A: The pre-installed Chrome on ubuntu-latest may not always be the
+      #    latest stable version. setup-chrome ensures a consistent, known
+      #    version is used, making builds reproducible. It also installs the
+      #    matching ChromeDriver automatically.
+      # ======================================================================
+      - name: 🌐 Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: 'stable'
+
+      # ======================================================================
+      # STEP 4: DISPLAY ENVIRONMENT INFO
+      #
+      # This step logs the tool versions for debugging and traceability.
+      # If a test suddenly fails, you can check if Chrome or Java was updated.
+      # ======================================================================
+      - name: 🔍 Display environment info
+        run: |
+          echo "=== Java ==="
+          java -version
+          echo "=== Maven ==="
+          mvn -version
+          echo "=== Chrome ==="
+          google-chrome --version || true
+
+      # ======================================================================
+      # STEP 5: RUN TESTS
+      #
+      # INTERVIEW Q: What does 'mvn clean test' do?
+      # A: - clean:  Deletes the target/ directory (removes previous build artifacts)
+      #    - test:   Executes the full Maven lifecycle up to the test phase:
+      #              validate → compile → test-compile → test
+      #    The -B flag enables "batch mode" (no interactive input, cleaner logs).
+      #    The -e flag shows detailed error stack traces for debugging failures.
+      #
+      # INTERVIEW Q: Why -Dheadless=true?
+      # A: CI servers don't have a display/monitor. Headless mode runs Chrome
+      #    without a visible window. The Hooks.java class reads this system
+      #    property and adds '--headless=new' to ChromeOptions when true.
+      #
+      # INTERVIEW Q: What is the 'continue-on-error' option?
+      # A: If set to true, the workflow continues even if this step fails.
+      #    We do NOT set it here — a test failure SHOULD fail the pipeline.
+      #    This is a deliberate design choice to enforce quality gates.
+      # ======================================================================
+      - name: 🧪 Run Cucumber tests
+        run: mvn clean test -B -e -Dheadless=true
+
+      # ======================================================================
+      # STEP 6: UPLOAD TEST REPORTS
+      #
+      # INTERVIEW Q: What are GitHub Actions artifacts?
+      # A: Artifacts are files produced during a workflow run that can be
+      #    downloaded from the GitHub Actions UI. They persist for a
+      #    configurable number of days (default: 90 days, set to 14 here).
+      #    Common uses: test reports, screenshots, build outputs.
+      #
+      # INTERVIEW Q: Why 'if: always()'?
+      # A: By default, steps only run if all previous steps PASSED.
+      #    'if: always()' runs this step regardless of test pass/fail status.
+      #    This is critical because test reports are MOST useful when tests FAIL.
+      #    Without 'always()', failed test reports would never be uploaded.
+      # ======================================================================
+      - name: 📊 Upload Cucumber HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-report-java-${{ matrix.java-version }}
+          path: target/cucumber-report/
+          retention-days: 14
+
+      - name: 📋 Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-java-${{ matrix.java-version }}
+          path: target/surefire-reports/
+          retention-days: 14
+
+      - name: 📜 Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-java-${{ matrix.java-version }}
+          path: target/logs/
+          retention-days: 14
+
+      - name: 📸 Upload screenshots (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-java-${{ matrix.java-version }}
+          path: target/screenshots/
+          retention-days: 14
+          if-no-files-found: ignore

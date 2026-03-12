@@ -1,0 +1,519 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+    ========================================================================================
+    INTERVIEW Q: What is a POM file?
+    A: POM (Project Object Model) is the fundamental unit of work in Maven.
+       It's an XML file that contains information about the project and configuration
+       details used by Maven to build the project (dependencies, plugins, goals, etc.).
+
+    INTERVIEW Q: What are the XML namespaces and schemaLocation for?
+    A: They define the XML vocabulary and validation rules for this document.
+       - xmlns: declares the default namespace (Maven POM 4.0.0 schema)
+       - xmlns:xsi: references the XML Schema Instance namespace for validation
+       - xsi:schemaLocation: maps the namespace to the actual XSD file so XML parsers
+         can validate the POM structure against Maven's schema definition.
+    ========================================================================================
+-->
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <!--
+        INTERVIEW Q: What is the modelVersion?
+        A: The modelVersion specifies the version of the POM model itself.
+           "4.0.0" is the only supported version for Maven 2 and 3.
+           It tells Maven how to interpret the rest of the POM file.
+    -->
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        ========================================================================================
+        PROJECT COORDINATES (GAV - GroupId, ArtifactId, Version)
+
+        INTERVIEW Q: What are Maven coordinates?
+        A: Maven coordinates uniquely identify a project artifact in the Maven repository.
+           The three required coordinates are often referred to as "GAV":
+           - groupId:    Typically follows Java package naming convention (e.g., com.company.project).
+                         Identifies the organization or group that created the project.
+           - artifactId: The unique name of the project/module within the group.
+           - version:    The specific release version of the artifact.
+           Together, GAV forms a unique address for any artifact in a Maven repository.
+
+        INTERVIEW Q: What is the <packaging> element?
+        A: It specifies the output artifact type produced by the build.
+           Common values: jar (default), war, pom, ear.
+           - "jar": produces a Java ARchive — a bundled collection of compiled .class files.
+           - "war": used for web applications deployed to servlet containers.
+           - "pom": used for parent POMs or BOM (Bill of Materials) projects.
+
+        INTERVIEW Q: What is the <name> element?
+        A: A human-readable display name for the project. It's used in documentation
+           and Maven-generated reports but has no effect on the build itself.
+        ========================================================================================
+    -->
+    <groupId>cjs</groupId>
+    <artifactId>cucumber-java-selenium</artifactId>
+    <version>0.0.1</version>
+    <packaging>jar</packaging>
+    <name>Cucumber-Java-Selenium</name>
+
+    <!--
+        ========================================================================================
+        PROPERTIES SECTION
+
+        INTERVIEW Q: What is the <properties> section in a POM file?
+        A: The <properties> section defines key-value pairs that can be referenced
+           elsewhere in the POM using the ${property.name} syntax. This promotes the
+           DRY (Don't Repeat Yourself) principle — if a version number is used by
+           multiple dependencies, it only needs to be changed in one place.
+
+        INTERVIEW Q: Why centralize versions in properties?
+        A: - Single source of truth for dependency versions (easy maintenance)
+           - Prevents version mismatch bugs across related libraries
+           - Makes upgrades safer and more predictable
+           - Improves readability and auditability of the POM
+        ========================================================================================
+    -->
+    <properties>
+        <!-- Ensures consistent character encoding across all platforms (UTF-8 is the standard). -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Java 21 (LTS release). Determines the source and target bytecode level for compilation. -->
+        <java.version>21</java.version>
+
+        <!-- Selenium 4.x — Browser automation library for UI testing. -->
+        <selenium.version>4.27.0</selenium.version>
+
+        <!-- JUnit 5 (Jupiter) — The modern Java testing framework used as the test runner. -->
+        <junit.version>5.11.4</junit.version>
+
+        <!-- Cucumber 7.x — BDD framework that parses Gherkin feature files into executable tests. -->
+        <cucumber.version>7.20.1</cucumber.version>
+
+        <!--
+            PicoContainer version is kept in sync with Cucumber.
+            It provides lightweight Dependency Injection for Cucumber step definition classes.
+        -->
+        <cucumber.picocontainer.version>7.20.1</cucumber.picocontainer.version>
+
+        <!-- Lombok — Compile-time annotation processor that generates boilerplate code (getters, setters, etc.). -->
+        <lombok.version>1.18.36</lombok.version>
+
+        <!-- ExtentReports — Rich HTML test reporting library with Spark Reporter. -->
+        <extentreports.version>5.1.2</extentreports.version>
+
+        <!--
+            SLF4J + Logback: A standard logging stack.
+            - SLF4J is the logging FACADE (API abstraction).
+            - Logback is the logging IMPLEMENTATION (the actual engine).
+
+            INTERVIEW Q: Why use SLF4J instead of calling Logback directly?
+            A: SLF4J provides an abstraction layer. Your code depends only on the SLF4J API,
+               and you can swap the underlying logging implementation (Logback, Log4j2, etc.)
+               without changing any application code. This is the Facade design pattern.
+        -->
+        <slf4j.version>2.0.16</slf4j.version>
+        <logback.version>1.5.12</logback.version>
+    </properties>
+
+    <!--
+        ========================================================================================
+        DEPENDENCY MANAGEMENT SECTION
+
+        INTERVIEW Q: What is <dependencyManagement> and how does it differ from <dependencies>?
+        A: - <dependencyManagement>: Declares dependency versions CENTRALLY but does NOT
+             add them to the classpath. Child modules or the <dependencies> section must
+             still explicitly declare each dependency, but they can omit the <version> tag
+             and inherit it from here.
+           - <dependencies>: Actually adds dependencies to the project classpath.
+
+           Think of <dependencyManagement> as a "version catalog" — it says
+           "IF you use this dependency, use THIS version." It doesn't force inclusion.
+
+        INTERVIEW Q: What is a BOM (Bill of Materials)?
+        A: A BOM is a special POM (with <packaging>pom</packaging>) that lists a curated
+           set of dependency versions. When imported with <scope>import</scope> and
+           <type>pom</type>, it populates the <dependencyManagement> of the consuming
+           project. This ensures all related libraries use compatible, tested versions.
+
+        INTERVIEW Q: Why use BOMs?
+        A: - Guarantees version compatibility across an entire library ecosystem
+             (e.g., all Selenium modules are guaranteed to be v4.27.0)
+           - Reduces the risk of ClassNotFoundException or NoSuchMethodError at runtime
+           - Simplifies version management — update one BOM version to upgrade everything
+        ========================================================================================
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <!-- JUnit 5 BOM: Manages versions for junit-jupiter, junit-platform-suite, etc. -->
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Cucumber BOM: Manages versions for cucumber-java, cucumber-junit-platform-engine, etc. -->
+            <dependency>
+                <groupId>io.cucumber</groupId>
+                <artifactId>cucumber-bom</artifactId>
+                <version>${cucumber.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Selenium BOM: Manages versions for selenium-java, selenium-support, selenium-api, etc. -->
+            <dependency>
+                <groupId>org.seleniumhq.selenium</groupId>
+                <artifactId>selenium-dependencies-bom</artifactId>
+                <version>${selenium.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!--
+        ========================================================================================
+        DEPENDENCIES SECTION
+
+        INTERVIEW Q: What are Maven dependency scopes?
+        A: Scopes control WHEN a dependency is available on the classpath:
+           - compile (default): Available in all phases — compile, test, and runtime.
+           - test:              Available ONLY during test compilation and execution.
+                                NOT included in the final packaged artifact (JAR/WAR).
+           - provided:          Available at compile-time but NOT packaged — the runtime
+                                environment (e.g., app server, JDK) is expected to provide it.
+           - runtime:           Not needed at compile-time but required at runtime.
+           - system:            Similar to provided but you specify the JAR path explicitly.
+                                (Generally discouraged.)
+           - import:            Only used in <dependencyManagement> to import a BOM.
+
+        INTERVIEW Q: Why don't some dependencies below have a <version> tag?
+        A: Their versions are inherited from the BOMs declared in <dependencyManagement> above.
+           The BOM "pre-loads" version information, so individual dependencies only need
+           groupId and artifactId. This is the primary benefit of BOM-based management.
+        ========================================================================================
+    -->
+    <dependencies>
+
+        <!--
+            =============== CUCUMBER DEPENDENCIES ===============
+
+            INTERVIEW Q: What is Cucumber and what is BDD?
+            A: Cucumber is a BDD (Behavior-Driven Development) framework. It allows writing
+               test scenarios in plain English using Gherkin syntax (Given/When/Then).
+               These .feature files serve as living documentation that is also executable.
+
+            INTERVIEW Q: What is the role of cucumber-java?
+            A: It provides the annotations (@Given, @When, @Then, @And, @But) used to
+               bind Gherkin steps in feature files to Java step definition methods.
+               It is the "glue" between human-readable scenarios and automation code.
+        -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            INTERVIEW Q: What is cucumber-junit-platform-engine?
+            A: It integrates Cucumber with the JUnit 5 Platform, allowing Cucumber tests
+               to be discovered and executed by the JUnit Platform launcher. This replaces
+               the older @RunWith(Cucumber.class) approach from JUnit 4.
+
+            INTERVIEW Q: Why JUnit 5 Platform instead of JUnit 4 runner?
+            A: JUnit 5 Platform is more extensible — it supports multiple test engines
+               (JUnit Jupiter, Cucumber, etc.) running in the same suite. It also provides
+               better parallel execution support, tagging, and IDE integration.
+        -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-junit-platform-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            =============== JUNIT 5 PLATFORM DEPENDENCIES ===============
+
+            INTERVIEW Q: What is junit-platform-suite?
+            A: It provides the @Suite annotation, which allows configuring and running
+               a set of tests as a suite on the JUnit Platform. In a Cucumber context,
+               it's used in the test runner class to configure feature file paths,
+               glue code packages, and plugin options using annotations like
+               @SelectClasspathResource, @ConfigurationParameter, etc.
+        -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            INTERVIEW Q: What is junit-jupiter?
+            A: It's the aggregator artifact for JUnit 5's programming model.
+               It bundles junit-jupiter-api (annotations like @Test, @BeforeEach)
+               and junit-jupiter-engine (the test execution engine).
+               Here it ensures the JUnit 5 engine is available for test discovery.
+        -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            =============== SELENIUM 4 DEPENDENCIES ===============
+
+            INTERVIEW Q: What is Selenium and what changed in Selenium 4?
+            A: Selenium is a browser automation tool for web application testing.
+               Key changes in Selenium 4:
+               - W3C WebDriver protocol is now the default (no more JSON Wire Protocol)
+               - Built-in Selenium Manager handles driver binaries automatically
+               - Relative locators (e.g., "above", "below", "near" another element)
+               - Chrome DevTools Protocol (CDP) support for network interception, etc.
+
+            INTERVIEW Q: Why include selenium-java, selenium-support, selenium-api,
+                          AND selenium-remote-driver separately?
+            A: - selenium-java:          The "all-in-one" module — includes all browser
+                                         drivers and transitive dependencies.
+               - selenium-support:       Provides utility classes like WebDriverWait,
+                                         ExpectedConditions, Select, and PageFactory.
+               - selenium-api:           The core interfaces (WebDriver, WebElement, By).
+               - selenium-remote-driver: Required for RemoteWebDriver, used when running
+                                         tests against Selenium Grid or cloud providers
+                                         (e.g., BrowserStack, Sauce Labs).
+        -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-support</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-remote-driver</artifactId>
+        </dependency>
+
+        <!--
+            =============== PICOCONTAINER (DEPENDENCY INJECTION) ===============
+
+            INTERVIEW Q: What is Dependency Injection (DI) and why use it with Cucumber?
+            A: DI is a design pattern where an object's dependencies are provided ("injected")
+               by an external framework rather than being created inside the object itself.
+               In Cucumber, each scenario creates new step definition instances. DI allows
+               sharing state (e.g., WebDriver, test context) across MULTIPLE step definition
+               classes within the SAME scenario without using static fields or singletons.
+
+            INTERVIEW Q: Why PicoContainer over Spring or Guice for Cucumber DI?
+            A: PicoContainer is ultra-lightweight (< 400KB) with zero configuration.
+               It uses constructor injection by default — Cucumber automatically injects
+               shared objects by detecting constructor parameters. No annotations, no XML,
+               no module configuration needed. Spring or Guice are better for large enterprise
+               apps, but PicoContainer is ideal for test frameworks due to its simplicity.
+
+            INTERVIEW Q: How does PicoContainer manage scope in Cucumber?
+            A: PicoContainer creates a new DI container for EACH scenario. This ensures
+               complete isolation between scenarios — objects like WebDriver are fresh per
+               scenario and don't leak state. The container is destroyed after each scenario.
+        -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-picocontainer</artifactId>
+            <version>${cucumber.picocontainer.version}</version>
+        </dependency>
+
+        <!--
+            =============== PROJECT LOMBOK ===============
+
+            INTERVIEW Q: What is Lombok and why is its scope "provided"?
+            A: Lombok is a compile-time annotation processor that auto-generates boilerplate
+               Java code (getters, setters, constructors, builders, toString, equals, hashCode, etc.)
+               via annotations like @Getter, @Setter, @Data, @Builder, @Slf4j.
+
+               Its scope is "provided" because:
+               - It's only needed at COMPILE TIME to generate code via annotation processing.
+               - The generated code is plain Java bytecode — Lombok itself is NOT needed at runtime.
+               - Using "provided" prevents it from being bundled into the final artifact.
+
+            INTERVIEW Q: What is Annotation Processing?
+            A: It's a compile-time mechanism (JSR 269) that lets tools inspect and generate
+               code based on annotations. The Java compiler invokes registered annotation
+               processors before completing compilation. Lombok uses this to inject generated
+               methods directly into the compiled .class files.
+        -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
+            =============== EXTENTREPORTS ===============
+
+            INTERVIEW Q: What is ExtentReports?
+            A: ExtentReports is a reporting library that generates rich, interactive HTML
+               test reports. The Spark Reporter (included in v5) produces dashboards with:
+               - Test pass/fail statistics and pie charts
+               - Step-by-step logs with timestamps
+               - Embedded screenshots for failed tests
+               - Category/tag-based filtering
+               It integrates with Cucumber via hooks to capture scenario results.
+        -->
+        <dependency>
+            <groupId>com.aventstack</groupId>
+            <artifactId>extentreports</artifactId>
+            <version>${extentreports.version}</version>
+        </dependency>
+
+        <!--
+            =============== LOGGING: SLF4J + LOGBACK ===============
+
+            INTERVIEW Q: What is the SLF4J + Logback pattern?
+            A: This is the Facade design pattern applied to logging:
+               - SLF4J (Simple Logging Facade for Java): Provides a generic logging API.
+                 Your code imports org.slf4j.Logger and calls logger.info(), .debug(), etc.
+               - Logback: The concrete implementation that handles log output (console, file,
+                 rolling files, etc.). It's configured via logback.xml or logback-test.xml.
+
+               By coding to the SLF4J API, you can replace Logback with Log4j2 or any other
+               SLF4J-compatible backend without touching a single line of application code.
+
+            INTERVIEW Q: What is the difference between slf4j-api and logback-classic?
+            A: - slf4j-api: The interface/abstraction layer. Contains Logger, LoggerFactory, etc.
+               - logback-classic: The implementation that processes log events. It natively
+                 implements the SLF4J API, so no adapter bridge is needed (unlike Log4j2).
+        -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+        </dependency>
+    </dependencies>
+
+    <!--
+        ========================================================================================
+        BUILD SECTION
+
+        INTERVIEW Q: What is the <build> section in Maven?
+        A: The <build> section configures HOW the project is built. It defines:
+           - Plugins: Tools that execute during specific build lifecycle phases
+           - Source/resource directories
+           - Output directory
+           - Plugin management (similar to dependencyManagement but for plugins)
+
+        INTERVIEW Q: What is the Maven Build Lifecycle?
+        A: Maven has three built-in lifecycles:
+           1. default: Handles project build and deployment (compile → test → package → install → deploy)
+           2. clean:   Removes files generated by previous builds
+           3. site:    Generates project documentation/reports
+
+           Each lifecycle consists of phases, and each phase can have plugin goals bound to it.
+           When you run "mvn test", Maven executes all phases up to and including "test":
+           validate → compile → test-compile → test
+        ========================================================================================
+    -->
+    <build>
+        <plugins>
+            <!--
+                =============== MAVEN COMPILER PLUGIN ===============
+
+                INTERVIEW Q: What does the maven-compiler-plugin do?
+                A: It compiles Java source files (.java → .class bytecode). It is bound to
+                   the "compile" and "test-compile" phases of the default lifecycle.
+
+                INTERVIEW Q: What do <source> and <target> mean?
+                A: - <source>: The Java language version of the source code (syntax level).
+                                Determines which language features are allowed (e.g., records,
+                                pattern matching, sealed classes in Java 21).
+                   - <target>: The JVM bytecode version of the compiled .class files.
+                                Determines the minimum JVM version needed to RUN the code.
+                   Both are set to Java 21 (LTS) here, meaning the code uses Java 21 features
+                   and requires a Java 21+ JVM to execute.
+
+                INTERVIEW Q: What is <annotationProcessorPaths> and why is Lombok listed there?
+                A: <annotationProcessorPaths> explicitly registers annotation processors
+                   with the compiler. Lombok is listed here to ensure the compiler invokes
+                   Lombok's annotation processor during compilation, regardless of the
+                   classpath configuration. This is the recommended approach since Maven 3.5+
+                   because it decouples annotation processing from the dependency classpath.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.1</version>
+                <configuration>
+                    <encoding>UTF-8</encoding>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!--
+                =============== MAVEN SUREFIRE PLUGIN ===============
+
+                INTERVIEW Q: What does the maven-surefire-plugin do?
+                A: It executes unit/integration tests during the "test" phase of the Maven
+                   build lifecycle. It discovers and runs test classes, and generates
+                   test result reports in the target/surefire-reports directory.
+
+                INTERVIEW Q: What is the "naming-strategy=long" configuration?
+                A: This is a Cucumber-specific JUnit Platform configuration parameter.
+                   It controls how test names appear in reports and IDE test runners:
+                   - "long":  Uses the full feature file name + scenario name
+                              (e.g., "Login Feature - Successful login with valid credentials")
+                   - "short": Uses only the scenario name
+                   The "long" strategy provides better traceability in test reports.
+
+                INTERVIEW Q: How does Surefire discover Cucumber tests?
+                A: The flow is:
+                   1. Surefire detects the JUnit Platform on the classpath
+                   2. JUnit Platform discovers the cucumber-junit-platform-engine
+                   3. The Cucumber engine scans for .feature files on the classpath
+                   4. It matches Gherkin steps to @Given/@When/@Then annotated methods
+                   5. Tests are executed and results reported back through the chain
+
+                INTERVIEW Q: What is the difference between Surefire and Failsafe plugins?
+                A: - Surefire: Runs during the "test" phase. Designed for UNIT tests.
+                     If a test fails, the build fails immediately.
+                   - Failsafe: Runs during the "integration-test" phase. Designed for
+                     INTEGRATION tests. It has a separate "verify" phase so that
+                     post-integration-test cleanup (e.g., stopping servers) can happen
+                     even if tests fail.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+                <configuration>
+                    <properties>
+                        <configurationParameters>
+                            cucumber.junit-platform.naming-strategy=long
+                        </configurationParameters>
+                    </properties>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
